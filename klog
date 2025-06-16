@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# === CONFIG ===
+NAMESPACE_ARG=""
+# Use this to hardcode a namespace like "--namespace myns", or leave blank for current context.
+
+# === LOGIC ===
+SEARCH="$1"
+[ -z "$SEARCH" ] && read -p "Enter search string for pod: " SEARCH
+
+MATCHES=($(kubectl get pods $NAMESPACE_ARG --no-headers | awk '{print $1}' | grep "$SEARCH"))
+
+COUNT=${#MATCHES[@]}
+
+if [ "$COUNT" -eq 0 ]; then
+    echo "No pods found matching '$SEARCH'"
+    exit 1
+elif [ "$COUNT" -eq 1 ]; then
+    echo "Showing logs for: ${MATCHES[0]}"
+    kubectl logs ${MATCHES[0]} $NAMESPACE_ARG
+else
+    echo "Multiple matches found:"
+    for i in "${!MATCHES[@]}"; do
+        printf "%2d) %s\n" $((i+1)) "${MATCHES[$i]}"
+    done
+
+    read -p "Select a pod number: " SEL
+    SEL_INDEX=$((SEL-1))
+
+    if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
+        echo "Showing logs for: ${MATCHES[$SEL_INDEX]}"
+        kubectl logs ${MATCHES[$SEL_INDEX]} $NAMESPACE_ARG
+    else
+        echo "Invalid selection."
+        exit 1
+    fi
+fi  
