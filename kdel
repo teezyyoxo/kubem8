@@ -1,8 +1,9 @@
 #!/bin/bash
-# kubectl delete helper
+# kdel — kubectl delete helper for pods or deployments
 
 # === DEFAULTS ===
 NAMESPACE="default"
+RESOURCE_TYPE="pod"
 SEARCH=""
 
 # === COLORS ===
@@ -11,12 +12,16 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 RESET='\033[0m'
 
-# === ARGUMENT PARSING ===
+# === ARG PARSING ===
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -n|--namespace)
             shift
             NAMESPACE="$1"
+            ;;
+        -t|--type)
+            shift
+            RESOURCE_TYPE="$1"
             ;;
         *)
             SEARCH="$1"
@@ -27,44 +32,44 @@ done
 
 # === ASK IF MISSING SEARCH TERM ===
 if [ -z "$SEARCH" ]; then
-    read -p "Enter search string for pod: " SEARCH
+    read -p "Enter search string for $RESOURCE_TYPE: " SEARCH
 fi
 
-# === GET MATCHING PODS ===
-MATCHES=($(kubectl get pods -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH"))
+# === FETCH MATCHING RESOURCES ===
+MATCHES=($(kubectl get "$RESOURCE_TYPE" -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH"))
 COUNT=${#MATCHES[@]}
 
-select_pod() {
-  echo "Multiple matches found:"
-  for i in "${!MATCHES[@]}"; do
-      printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
-  done
-  read -p "Select a pod number to delete: " SEL
-  SEL_INDEX=$((SEL-1))
-  if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
-    POD_NAME="${MATCHES[$SEL_INDEX]}"
-  else
-    echo "Invalid selection."
-    exit 1
-  fi
+select_resource() {
+    echo "Multiple matches found:"
+    for i in "${!MATCHES[@]}"; do
+        printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
+    done
+    read -p "Select a $RESOURCE_TYPE number to delete: " SEL
+    SEL_INDEX=$((SEL-1))
+    if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
+        SELECTED="${MATCHES[$SEL_INDEX]}"
+    else
+        echo "Invalid selection."
+        exit 1
+    fi
 }
 
 if [ "$COUNT" -eq 0 ]; then
-    echo "No pods found in namespace '${NAMESPACE}' matching '$SEARCH'"
+    echo "No $RESOURCE_TYPE found in namespace '${NAMESPACE}' matching '$SEARCH'"
     exit 1
 elif [ "$COUNT" -eq 1 ]; then
-    POD_NAME="${MATCHES[0]}"
+    SELECTED="${MATCHES[0]}"
 else
-    select_pod
+    select_resource
 fi
 
 # === CONFIRMATION PROMPT ===
 echo -e "${BOLD}Namespace:${RESET} $NAMESPACE"
-echo -e "${RED}Delete pod:${RESET} $POD_NAME"
+echo -e "${RED}Delete ${RESOURCE_TYPE}:${RESET} $SELECTED"
 read -p "Are you sure? [y/N]: " CONFIRM
 if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
-    echo -e "Deleting pod ${BOLD}${POD_NAME}${RESET}..."
-    kubectl delete pod "$POD_NAME" -n "$NAMESPACE"
+    echo -e "Deleting ${RESOURCE_TYPE} ${BOLD}${SELECTED}${RESET}..."
+    kubectl delete "$RESOURCE_TYPE" "$SELECTED" -n "$NAMESPACE"
 else
     echo "Aborted."
     exit 0

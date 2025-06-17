@@ -1,62 +1,54 @@
 #!/bin/bash
 
-# === DEFAULTS ===
-NAMESPACE="default"
+# === kdescribe ===
+# Describe a Kubernetes pod or deployment by partial match
+# Usage: kdescribe <search-term> [-n namespace] [-t type]
+# Defaults: namespace="default", type="pod"
+
 SEARCH=""
+NAMESPACE="default"
+TYPE="pod"
 
-# === COLORS ===
-BOLD='\033[1m'
-RESET='\033[0m'
-
-# === ARGUMENT PARSING ===
+# Parse args
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -n|--namespace)
-            shift
-            NAMESPACE="$1"
-            ;;
-        *)
-            SEARCH="$1"
-            ;;
-    esac
-    shift
+  case $1 in
+    -n|--namespace)
+      NAMESPACE="$2"
+      shift 2
+      ;;
+    -t|--type)
+      TYPE="$2"
+      shift 2
+      ;;
+    *)
+      SEARCH="$1"
+      shift
+      ;;
+  esac
 done
 
-# === ASK IF MISSING SEARCH TERM ===
-if [ -z "$SEARCH" ]; then
-    read -p "Enter search string for pod: " SEARCH
+if [[ -z "$SEARCH" ]]; then
+  echo "Usage: kdescribe <search-term> [-n namespace] [-t type]"
+  exit 1
 fi
 
-# === GET MATCHING PODS ===
-MATCHES=($(kubectl get pods -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH"))
-COUNT=${#MATCHES[@]}
+echo "Searching for $TYPE(s) matching \"$SEARCH\" in namespace \"$NAMESPACE\"..."
 
-select_pod() {
+MATCHES=($(kubectl get $TYPE -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH"))
+
+if [[ ${#MATCHES[@]} -eq 0 ]]; then
+  echo "No $TYPE found matching \"$SEARCH\"."
+  exit 1
+elif [[ ${#MATCHES[@]} -eq 1 ]]; then
+  SELECTED="${MATCHES[0]}"
+else
   echo "Multiple matches found:"
   for i in "${!MATCHES[@]}"; do
-      printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
+    echo " $((i+1))) ${MATCHES[$i]}"
   done
-  read -p "Select a pod number: " SEL
-  SEL_INDEX=$((SEL-1))
-  if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
-    POD_NAME="${MATCHES[$SEL_INDEX]}"
-  else
-    echo "Invalid selection."
-    exit 1
-  fi
-}
-
-if [ "$COUNT" -eq 0 ]; then
-    echo "No pods found in namespace '${NAMESPACE}' matching '$SEARCH'"
-    exit 1
-elif [ "$COUNT" -eq 1 ]; then
-    POD_NAME="${MATCHES[0]}"
-else
-    select_pod
+  read -rp "Select a number: " SELECTED_INDEX
+  SELECTED="${MATCHES[$((SELECTED_INDEX-1))]}"
 fi
 
-echo -e "Namespace: ${BOLD}$NAMESPACE${RESET}"
-echo -e "Describing pod: ${BOLD}${POD_NAME}${RESET}"
-echo "----------------------------------------"
-
-kubectl describe pod "$POD_NAME" -n "$NAMESPACE"
+echo "Describing $TYPE: $SELECTED"
+kubectl describe $TYPE "$SELECTED" -n "$NAMESPACE"
