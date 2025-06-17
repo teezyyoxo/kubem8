@@ -1,5 +1,5 @@
-# Kubernetes Administration for Newbies 🛳️
-Your friendly kube-mate for managing pods, logs, scaling, and more — without the yak shaving. ;)
+# kubem8 - Kubernetes Administration for Newbies 🛳️
+*Your friendly kube-mate for managing pods, logs, scaling, and more — without the yak shaving*. ;)
 
 These are simple Bash helpers for working with `kubectl` without needing to manually copy full pod names every time.
 
@@ -88,6 +88,11 @@ kscale some-random-pod 2
 - Supports **partial substring** matches for pod names.
 - You may hardcode a namespace by modifying the NAMESPACE_ARG variable inside the scripts.
 - Works best with reasonably short and unique search strings to avoid large result sets.
+
+## Future Plans 💡
+- Package each script into one binary (i.e., kubem8) for easier application and deployment.
+- Prettier output
+- Potential rebuild with Python, to leverage and include jq for more efficient log parsing
 
 ## Contributions
 Feel free to open issues or pull requests for improvements!
