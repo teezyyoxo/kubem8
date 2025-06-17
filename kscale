@@ -49,9 +49,16 @@ if [ -z "$SEARCH" ]; then
     read -p "Enter search string: " SEARCH
 fi
 
-# === GET MATCHES FROM DEPLOYS AND STS ===
-MAPFILE -t DEPLOY_MATCHES < <(kubectl get deploy -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH")
-MAPFILE -t STS_MATCHES < <(kubectl get sts -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH")
+# === GET MATCHES FROM DEPLOYMENTS AND STATEFULSETS ===
+DEPLOYMENTS=()
+while IFS= read -r line; do
+    DEPLOYMENTS+=("$line")
+done < <(kubectl get deployments -n "$NAMESPACE" --no-headers | grep "$SEARCH")
+
+STATEFULSETS=()
+while IFS= read -r line; do
+    STATEFULSETS+=("$line")
+done < <(kubectl get statefulsets -n "$NAMESPACE" --no-headers | grep "$SEARCH")
 
 RESOURCE_TYPE=""
 RESOURCE_NAME=""
