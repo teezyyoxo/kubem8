@@ -30,13 +30,14 @@ By using these tools, it is assumed that you are using Bash **and** have kubectl
 
 ---
 ## 📦 Installation
-Copy both scripts to a directory in your `$PATH` (e.g., `/usr/local/bin/`):
+Download and copy script that you need (or each of them) to a directory in your `$PATH` (e.g., `/usr/local/bin/`):
 ```
 sudo cp klog /usr/local/bin/
 sudo cp kdescribe /usr/local/bin/
 sudo cp kdel /usr/local/bin
-sudo chmod +x /usr/local/bin/klog /usr/local/bin/kdescribe /usr/local/bin/kdel
+sudo chmod +x /usr/local/bin/klog /usr/local/bin/kdescribe /usr/local/bin/kdel <--- this will make the script executable
 ```
+_Using `/usr/local/bin/` is easiest, as you will then be able to immediately run them without having to `source` your `.bashrc`_.
 
 ## 🛠️ Usage
 ```
