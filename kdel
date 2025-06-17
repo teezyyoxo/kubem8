@@ -1,5 +1,20 @@
 #!/bin/bash
-# kdel — kubectl delete helper for pods or deployments
+# kdel — kubectl delete helper for pods or other resources
+#
+# Usage:
+#   kdel [search-string] [-n namespace] [-t resource-type]
+#
+# Arguments:
+#   search-string           Partial name of the resource to search for (required unless prompted)
+#
+# Options:
+#   -n, --namespace         Kubernetes namespace (default: "default")
+#   -t, --type              Resource type (default: "pod"; examples: pod, deployment, statefulset)
+#
+# Examples:
+#   kdel crashloop          # Search and delete a pod with "crashloop" in the name
+#   kdel -t deployment auth # Delete a deployment matching "auth" in the default namespace
+#   kdel -n kube-system kube-proxy # Delete a kube-proxy pod in the kube-system namespace
 
 # === DEFAULTS ===
 NAMESPACE="default"
@@ -54,7 +69,14 @@ select_resource() {
         i=1
         while IFS= read -r line; do
             FIELDS=($line)
-            printf " %2d) %-50s  %-8s  %-15s  %-8s  %-8s\n" "$i" "${FIELDS[0]}" "${FIELDS[1]}" "${FIELDS[2]}" "${FIELDS[3]}" "${FIELDS[4]}"
+            STATUS="${FIELDS[2]}"
+            if [[ "$STATUS" =~ (Error|CrashLoopBackOff|Failed|Unknown) ]]; then
+                COLOR="$RED"
+            else
+                COLOR="$RESET"
+            fi
+            printf " %2d) ${COLOR}%-50s  %-8s  %-15s  %-8s  %-8s${RESET}\n" \
+                "$i" "${FIELDS[0]}" "${FIELDS[1]}" "${FIELDS[2]}" "${FIELDS[3]}" "${FIELDS[4]}"
             i=$((i+1))
         done <<< "$MAP_OUTPUT"
     else
