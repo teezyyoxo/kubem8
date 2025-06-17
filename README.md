@@ -2,6 +2,7 @@
 
 These are simple Bash helpers for working with `kubectl` without needing to manually copy full pod names every time.
 FYI, each script has the flag definitions in the code themselves.
+It is assumed that your are using Bash **and** have kubectl installed, with a cluster that is online.
 
 ---
 
@@ -22,7 +23,8 @@ FYI, each script has the flag definitions in the code themselves.
 
 🧼 Clean, readable output formatting with colors and aligned columns—no extra dependencies like jq required.
 
-🚫 Does not require jq or any third-party tools • Works with Bash and kubectl
+🚫 Does not require jq or any third-party tools (except kubectl).
+
 ---
 ## 📦 Installation
 Copy both scripts to a directory in your `$PATH` (e.g., `/usr/local/bin/`):
