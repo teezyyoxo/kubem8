@@ -5,93 +5,92 @@
 # Usage: klog <search-term> [-n namespace] [-t type]
 # Defaults: namespace="default", type="pod"
 
-SEARCH=""
+# === DEFAULTS ===
 NAMESPACE="default"
-TYPE="pod"
+SEARCH=""
 
-# ANSI colors
+# === COLORS ===
+BOLD='\033[1m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 RESET='\033[0m'
 
-# Parse args
+# === ARGUMENT PARSING ===
 while [[ $# -gt 0 ]]; do
-  case $1 in
-    -n|--namespace)
-      NAMESPACE="$2"
-      shift 2
-      ;;
-    -t|--type)
-      TYPE="$2"
-      shift 2
-      ;;
-    *)
-      SEARCH="$1"
-      shift
-      ;;
-  esac
+    case "$1" in
+        -n|--namespace)
+            shift
+            NAMESPACE="$1"
+            ;;
+        *)
+            SEARCH="$1"
+            ;;
+    esac
+    shift
 done
 
-if [[ -z "$SEARCH" ]]; then
-  echo "Usage: klog <search-term> [-n namespace] [-t type]"
-  exit 1
+if [ -z "$SEARCH" ]; then
+    read -p "Enter search string for pod: " SEARCH
 fi
 
-echo "Searching for $TYPE(s) matching \"$SEARCH\" in namespace \"$NAMESPACE\"..."
+MAP_OUTPUT=$(kubectl get pods -n "$NAMESPACE" --no-headers | grep "$SEARCH")
+MATCHES=($(echo "$MAP_OUTPUT" | awk '{print $1}'))
+COUNT=${#MATCHES[@]}
 
-MATCHES=($(kubectl get $TYPE -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH"))
+select_pod() {
+    echo "Multiple matches found:"
+    printf " %2s  %-50s  %-8s  %-15s  %-8s  %-8s\n" "#" "NAME" "READY" "STATUS" "RESTARTS" "AGE"
+    echo "----------------------------------------------------------------------------------------------------------------"
+    i=1
+    while IFS= read -r line; do
+        FIELDS=($line)
+        printf " %2d) %-50s  %-8s  %-15s  %-8s  %-8s\n" "$i" "${FIELDS[0]}" "${FIELDS[1]}" "${FIELDS[2]}" "${FIELDS[3]}" "${FIELDS[4]}"
+        i=$((i+1))
+    done <<< "$MAP_OUTPUT"
 
-if [[ ${#MATCHES[@]} -eq 0 ]]; then
-  echo "No $TYPE found matching \"$SEARCH\"."
-  exit 1
-elif [[ ${#MATCHES[@]} -eq 1 ]]; then
-  SELECTED="${MATCHES[0]}"
+    echo
+    read -p "Select a pod number: " SEL
+    SEL_INDEX=$((SEL-1))
+    if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
+        POD_NAME="${MATCHES[$SEL_INDEX]}"
+    else
+        echo "Invalid selection."
+        exit 1
+    fi
+}
+
+if [ "$COUNT" -eq 0 ]; then
+    echo "No pods found in namespace '${NAMESPACE}' matching '$SEARCH'"
+    exit 1
+elif [ "$COUNT" -eq 1 ]; then
+    POD_NAME="${MATCHES[0]}"
 else
-  echo "Multiple matches found:"
-  for i in "${!MATCHES[@]}"; do
-    echo " $((i+1))) ${MATCHES[$i]}"
-  done
-  read -rp "Select a number: " SELECTED_INDEX
-  SELECTED="${MATCHES[$((SELECTED_INDEX-1))]}"
+    select_pod
 fi
 
-echo "Showing logs for: $SELECTED"
+APP_NAME=$(echo "$POD_NAME" | cut -d'-' -f2)
+echo "Showing logs for: $POD_NAME"
+echo "Application is: [${APP_NAME}]"
+echo "--------------------------------------------------"
 
-LOG_CMD="kubectl logs $TYPE/$SELECTED -n $NAMESPACE --all-containers=true"
+kubectl logs "$POD_NAME" -n "$NAMESPACE" --tail=1000 | while IFS= read -r line; do
+    if [[ "$line" =~ \{.*\} ]]; then
+        LEVEL=$(echo "$line" | grep -o '"level":"[A-Z]*"' | cut -d'"' -f4)
+        TIME=$(echo "$line" | grep -o '"time":"[^"]*"' | cut -d'"' -f4)
+        MSG=$(echo "$line" | grep -o '"msg":"[^"]*"' | cut -d'"' -f4)
 
-$LOG_CMD | while IFS= read -r line; do
-  if [[ $line =~ \"time\":\"([^\"]+)\" ]]; then
-    TIMESTAMP="${BASH_REMATCH[1]}"
-  else
-    TIMESTAMP=""
-  fi
+        if [[ "$LEVEL" == "ERROR" ]]; then
+            COLOR=$RED
+        elif [[ "$LEVEL" == "INFO" ]]; then
+            COLOR=$GREEN
+        elif [[ "$LEVEL" == "WARN" ]]; then
+            COLOR=$YELLOW
+        else
+            COLOR=$RESET
+        fi
 
-  if [[ $line =~ \"level\":\"([^\"]+)\" ]]; then
-    LEVEL="${BASH_REMATCH[1]}"
-  else
-    LEVEL="UNKNOWN"
-  fi
-
-  case "$LEVEL" in
-    INFO)
-      COLOR=$GREEN
-      ;;
-    ERROR)
-      COLOR=$RED
-      ;;
-    WARN|WARNING)
-      COLOR=$YELLOW
-      ;;
-    *)
-      COLOR=$RESET
-      ;;
-  esac
-
-  if [[ $line =~ \"msg\":\"([^\"]+)\" ]]; then
-    MSG="${BASH_REMATCH[1]}"
-    echo -e "${COLOR}[${TIMESTAMP}] [$LEVEL] - $MSG${RESET}"
-  else
-    echo -e "${COLOR}${line}${RESET}"
-  fi
-done
+        echo -e "${COLOR}[${TIME}] [${LEVEL}] - ${MSG}${RESET}"
+    else
+        echo "$line"
+    fi
