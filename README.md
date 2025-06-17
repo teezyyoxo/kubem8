@@ -1,52 +1,55 @@
-# Kubernetes Pod Quick Access Scripts
+# klog / kdescribe
 
-Simple CLI wrappers to speed up common `kubectl` pod commands by letting you search for pods by substring and select from multiple matches.
-
----
-
-## Scripts
-
-### `klog`
-
-Fetch logs from a pod matching a search string.
-
-- If one pod matches, it shows logs directly.
-- If multiple pods match, prompts to select one.
-- If no match, notifies and exits.
-
-### `kdesc`
-
-Describe a pod matching a search string.
-
-Same behavior as `klog`, but runs `kubectl describe pod`.
+These are simple Bash helpers for working with `kubectl` without needing to manually copy full pod names every time.
 
 ---
 
-## Installation
+## 🧰 Features
 
-1. Save the script files (`klog`, `kdesc`) to your machine.
-2. Make them executable:
-   `chmod +x klog kdesc`
-3.	Move them to a directory in your $PATH:
-   `sudo mv klog kdesc /usr/local/bin/`
-## Usage
-   # Show logs for pods matching "pia"
-   klog pia
+- 🔍 Search pods by name substring.
+- 🧾 View logs with `klog`, nicely colorized for JSON-formatted log lines (INFO/ERROR/etc).
+- 📄 Describe pods with `kdescribe`.
+- 🚀 Interactive prompt if multiple matches found.
+- 🧭 Optional `-n` / `--namespace` flag support. Defaults to `default` namespace if not specified.
+- 🧼 Clean output formatting, no extra dependencies like `jq`.
 
-   # Describe pods matching "cache"
-   kdesc cache
+---
 
-   # If you run without arguments, it will prompt:
-   klog
-   kdesc
+## 📦 Installation
+Copy both scripts to a directory in your `$PATH` (e.g., `/usr/local/bin/`):
+   sudo cp klog /usr/local/bin/
+   sudo cp kdescribe /usr/local/bin/
+   sudo chmod +x /usr/local/bin/klog /usr/local/bin/kdescribe
+## 🛠️ Usage
+   klog pod-substring                 # searches in 'default' namespace
+   klog -n your-namespace pod-name    # searches in given namespace
+   ###############
+   kdescribe pod-substring
+   kdescribe -n your-namespace pod-name
+*If multiple matches are found, you’ll be prompted to choose.*
+
+
 
 ### Example
-   $ klog pia
+   ubuntu@host:~$ klog iam
    Multiple matches found:
-   1) bigid-pia-6d6fbb774b-chdp8
-   Select a pod number: 1
-   Showing logs for: bigid-pia-6d6fbb774b-chdp8
-   [logs output...]
+   1) iama-pod-6fbd544566-h9bm9
+   2) iama-pod-6fbd544566-vf2kg
+   Select a pod number: 2
+   Showing logs for: iama-pod-6fbd544566-vf2kg
+   Namespace: default
+
+   [2025-06-17T14:29:21.604Z] INFO - Starting application...
+   {"name":"pod","level":"INFO","msg":"Starting application...","time":"2025-06-17T14:29:21.604Z"}
+
+   [2025-06-17T14:29:51.653Z] INFO - Fetching system token by refresh token
+   {"name":"pod","level":"INFO","msg":"Fetching system token by refresh token","time":"2025-06-17T14:29:51.653Z"}
+
+   MongoServerSelectionError: getaddrinfo ENOTFOUND some-dependency
+      at Timeout._onTimeout (...)
+### 🚫 No Dependencies
+	•	Does not require jq or any third-party tools
+	•	Works with Bash and kubectl
 
 ## Notes
 	•	These scripts default to your current Kubernetes context and namespace.

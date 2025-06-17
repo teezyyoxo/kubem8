@@ -1,37 +1,88 @@
 #!/bin/bash
 
-# === CONFIG ===
-NAMESPACE_ARG=""
-# Use this to hardcode a namespace like "--namespace myns", or leave blank for current context.
+# === DEFAULTS ===
+NAMESPACE="default"
+SEARCH=""
 
-# === LOGIC ===
-SEARCH="$1"
-[ -z "$SEARCH" ] && read -p "Enter search string for pod: " SEARCH
+# === COLORS ===
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
+DIM='\033[2m'
+RESET='\033[0m'
 
-MATCHES=($(kubectl get pods $NAMESPACE_ARG --no-headers | awk '{print $1}' | grep "$SEARCH"))
+# === ARGUMENT PARSING ===
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--namespace)
+            shift
+            NAMESPACE="$1"
+            ;;
+        *)
+            SEARCH="$1"
+            ;;
+    esac
+    shift
+done
 
+# === ASK IF MISSING SEARCH TERM ===
+if [ -z "$SEARCH" ]; then
+    read -p "Enter search string for pod: " SEARCH
+fi
+
+# === GET MATCHING PODS ===
+MATCHES=($(kubectl get pods -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH"))
 COUNT=${#MATCHES[@]}
 
+select_pod() {
+  echo "Multiple matches found:"
+  for i in "${!MATCHES[@]}"; do
+      printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
+  done
+  read -p "Select a pod number: " SEL
+  SEL_INDEX=$((SEL-1))
+  if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
+    POD_NAME="${MATCHES[$SEL_INDEX]}"
+  else
+    echo "Invalid selection."
+    exit 1
+  fi
+}
+
 if [ "$COUNT" -eq 0 ]; then
-    echo "No pods found matching '$SEARCH'"
+    echo "No pods found in namespace '${NAMESPACE}' matching '$SEARCH'"
     exit 1
 elif [ "$COUNT" -eq 1 ]; then
-    echo "Showing logs for: ${MATCHES[0]}"
-    kubectl logs ${MATCHES[0]} $NAMESPACE_ARG
+    POD_NAME="${MATCHES[0]}"
 else
-    echo "Multiple matches found:"
-    for i in "${!MATCHES[@]}"; do
-        printf "%2d) %s\n" $((i+1)) "${MATCHES[$i]}"
-    done
+    select_pod
+fi
 
-    read -p "Select a pod number: " SEL
-    SEL_INDEX=$((SEL-1))
+echo -e "Namespace: ${BOLD}$NAMESPACE${RESET}"
+echo -e "Showing logs for: ${BOLD}${POD_NAME}${RESET}"
+echo "----------------------------------------"
 
-    if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
-        echo "Showing logs for: ${MATCHES[$SEL_INDEX]}"
-        kubectl logs ${MATCHES[$SEL_INDEX]} $NAMESPACE_ARG
+kubectl logs "$POD_NAME" -n "$NAMESPACE" | while IFS= read -r line; do
+    if echo "$line" | grep -qE '^\{.*\}$'; then
+        LEVEL=$(echo "$line" | sed -n 's/.*"level":"\([^"]*\)".*/\1/p')
+        MSG=$(echo "$line" | sed -n 's/.*"msg":"\([^"]*\)".*/\1/p')
+        TIME=$(echo "$line" | sed -n 's/.*"time":"\([^"]*\)".*/\1/p')
+
+        case "$LEVEL" in
+            INFO) COLOR=$GREEN ;;
+            ERROR|FATAL) COLOR=$RED ;;
+            WARN|WARNING) COLOR=$YELLOW ;;
+            *) COLOR=$RESET ;;
+        esac
+
+        echo -e "${BOLD}[${TIME}]${RESET} ${COLOR}${LEVEL}${RESET} - ${MSG}"
+        echo -e "${DIM}  $line${RESET}"
     else
-        echo "Invalid selection."
-        exit 1
+        if [[ "$line" == *"Error"* || "$line" == *"Exception"* ]]; then
+            echo -e "${RED}${line}${RESET}"
+        else
+            echo "$line"
+        fi
     fi
-fi  
+done
