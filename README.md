@@ -96,9 +96,9 @@ kscale some-random-pod 2
 ```
 ---
 ## Notes
-- These scripts default to your current Kubernetes context and namespace and assume kubectl is installed, configured, and has access to your cluster
-- Supports **partial substring** matches for pod names.
-- You may hardcode a namespace by modifying the NAMESPACE_ARG variable inside the scripts.
+- These scripts default to your current Kubernetes context and namespace and assume `kubectl` is installed, configured, and has access to your cluster
+- Supports **partial substring** matches for pod or deployment/statefulset names.
+- You may hardcode a namespace by modifying the `NAMESPACE_ARG` variable inside the scripts.
 - Works best with reasonably short and unique search strings to avoid large result sets.
 
 ## Future Plans 💡
