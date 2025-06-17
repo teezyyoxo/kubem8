@@ -30,8 +30,11 @@ Each script has the option/flag definitions in the code themselves.
 
 ---
 ## 📦 Installation
-Download and copy script that you need (or each of them) to a directory in your `$PATH` (e.g., `/usr/local/bin/`):
+1. Download and copy the script(s) that you need to a directory in your `$PATH` (e.g., `/usr/local/bin/`).
+2. Make them executable with `chmod +x <path/to/script>`.
+3. 🏃🏽‍♂️💨
 ```
+## Example installation
 sudo cp klog /usr/local/bin/
 sudo cp kdescribe /usr/local/bin/
 sudo cp kdel /usr/local/bin
@@ -41,15 +44,15 @@ _Using `/usr/local/bin/` is easiest, as you will then be able to immediately run
 
 ## 🛠️ Usage
 ```
-klog pod-substring                 # searches in 'default' namespace
-klog -n your-namespace pod-name    # searches in given namespace
-###############
-kdescribe pod-substring
-kdescribe -n your-namespace pod-name
+klog <pod-string>                     # searches in 'default' namespace
+kdescribe <pod-string>                # searhces in 'default' namespace
+klog -n <namespace> <pod-string>      # searches in the specified namespace
+kdescribe -n <namespace> <pod-string> # searches in the specified namespace
+etc...
 ```
-*If multiple matches are found, you’ll be prompted to choose.*
+*If multiple matches are found, you’ll be prompted to select the one you want.*
 
-### Examples/Usage
+### More Examples
 ```
 ubuntu@host:~$ klog iam
 Multiple matches found:
