@@ -60,15 +60,16 @@ while IFS= read -r line; do
     STATEFULSETS+=("$line")
 done < <(kubectl get statefulsets -n "$NAMESPACE" --no-headers | grep "$SEARCH")
 
-RESOURCE_TYPE=""
-RESOURCE_NAME=""
 ALL_MATCHES=()
 
-for d in "${DEPLOY_MATCHES[@]}"; do
-    ALL_MATCHES+=("Deployment:$d")
+# Separate resource name (first column) from the full line, and store both
+for d in "${DEPLOYMENTS[@]}"; do
+    NAME=$(awk '{print $1}' <<< "$d")
+    ALL_MATCHES+=("Deployment:$NAME:$d")
 done
-for s in "${STS_MATCHES[@]}"; do
-    ALL_MATCHES+=("StatefulSet:$s")
+for s in "${STATEFULSETS[@]}"; do
+    NAME=$(awk '{print $1}' <<< "$s")
+    ALL_MATCHES+=("StatefulSet:$NAME:$s")
 done
 
 COUNT=${#ALL_MATCHES[@]}
@@ -77,29 +78,40 @@ if [ "$COUNT" -eq 0 ]; then
     echo -e "${RED}No deployments or statefulsets found matching '${SEARCH}' in namespace '${NAMESPACE}'${RESET}"
     exit 1
 elif [ "$COUNT" -eq 1 ]; then
-    IFS=":" read -r RESOURCE_TYPE RESOURCE_NAME <<< "${ALL_MATCHES[0]}"
+    IFS=":" read -r RESOURCE_TYPE RESOURCE_NAME RESOURCE_LINE <<< "${ALL_MATCHES[0]}"
 else
     echo -e "${BOLD}Multiple matches found:${RESET}"
     for i in "${!ALL_MATCHES[@]}"; do
-        IFS=":" read -r TYPE NAME <<< "${ALL_MATCHES[$i]}"
-        printf " %2d) [%s] %s\n" $((i+1)) "$TYPE" "$NAME"
+        IFS=":" read -r TYPE NAME LINE <<< "${ALL_MATCHES[$i]}"
+        printf " %2d) [%s] %s\n" $((i+1)) "$TYPE" "$LINE"
     done
     read -p "Select a number: " SEL
     SEL_INDEX=$((SEL-1))
     if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
-        IFS=":" read -r RESOURCE_TYPE RESOURCE_NAME <<< "${ALL_MATCHES[$SEL_INDEX]}"
+        IFS=":" read -r RESOURCE_TYPE RESOURCE_NAME RESOURCE_LINE <<< "${ALL_MATCHES[$SEL_INDEX]}"
     else
         echo "Invalid selection."
         exit 1
     fi
 fi
 
+# === SHOW TARGET INFO IMMEDIATELY AFTER MATCHING ===
+echo -e "\n${BOLD}Namespace:${RESET} $NAMESPACE"
+echo -e "${BOLD}Target:${RESET} $RESOURCE_NAME [$RESOURCE_TYPE]"
+echo -e "${BOLD}Details:${RESET}"
+if [[ "$RESOURCE_TYPE" == "Deployment" ]]; then
+    echo "NAME                     READY   UP-TO-DATE   AVAILABLE   AGE"
+else
+    echo "NAME                     READY   AGE"
+fi
+echo "$RESOURCE_LINE"
+
 # === GET CURRENT REPLICA COUNT ===
-CURRENT_REPLICAS=$(kubectl get "$RESOURCE_TYPE" "$RESOURCE_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}')
+CURRENT_REPLICAS=$(kubectl get "$RESOURCE_TYPE" "$RESOURCE_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}' 2>/dev/null)
 
 # === GET MODE ===
 if [[ "$SUBCOMMAND" == "get" ]]; then
-    echo -e "${BOLD}$RESOURCE_TYPE $RESOURCE_NAME${RESET} in namespace '${NAMESPACE}' has ${GREEN}$CURRENT_REPLICAS${RESET} replicas configured."
+    echo -e "\n${BOLD}$RESOURCE_TYPE $RESOURCE_NAME${RESET} in namespace '${NAMESPACE}' has ${GREEN}$CURRENT_REPLICAS${RESET} replicas configured."
     exit 0
 fi
 
@@ -112,10 +124,6 @@ if ! [[ "$REPLICAS" =~ ^[0-9]+$ ]]; then
     echo -e "${RED}Error:${RESET} Replica count must be a non-negative integer."
     exit 1
 fi
-
-# === SHOW METADATA BEFORE SCALING ===
-echo -e "\n${BOLD}${RESOURCE_TYPE} Details:${RESET}"
-kubectl get "$RESOURCE_TYPE" "$RESOURCE_NAME" -n "$NAMESPACE"
 
 # === CONFIRMATION ===
 echo -e "\n${BOLD}Namespace:${RESET} $NAMESPACE"
