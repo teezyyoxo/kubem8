@@ -81,10 +81,18 @@ kdel -n staging cache
 or...
 ```
 kscale get system-web-ui -n dev
-# => Deployment bigid-ui in namespace 'bigid' has 1 replicas configured.
+# => Deployment system-web-ui in namespace 'dev' has 1 replicas configured.
 
 kscale some-random-pod 2
-# => Interactively matches and confirms scaling to 2
+# =>  Please confirm the following change:
+      Resource:   system-web-ui [Deployment]
+      Namespace:  default
+      Current:    1 replica(s)
+      Requested:  0 replica(s)
+
+      Proceed with scaling? [y/N]: y
+      Scaling system-web-ui to 0 replicas...
+      deployment.apps/system-web-ui scaled
 ```
 ---
 ## Notes
