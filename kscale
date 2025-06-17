@@ -61,8 +61,6 @@ while IFS= read -r line; do
 done < <(kubectl get statefulsets -n "$NAMESPACE" --no-headers | grep "$SEARCH")
 
 ALL_MATCHES=()
-
-# Parse resource name and store full line for both types
 for d in "${DEPLOYMENTS[@]}"; do
     NAME=$(awk '{print $1}' <<< "$d")
     ALL_MATCHES+=("Deployment:$NAME:$d")
@@ -79,43 +77,33 @@ if [ "$COUNT" -eq 0 ]; then
     exit 1
 elif [ "$COUNT" -eq 1 ]; then
     IFS=":" read -r RESOURCE_TYPE RESOURCE_NAME RESOURCE_LINE <<< "${ALL_MATCHES[0]}"
-    # Single match display with spacing and headers
     echo -e "\n---"
     echo -e "${BOLD}NAMESPACE:${RESET} $NAMESPACE"
     echo -e "${BOLD}TARGET:${RESET} $RESOURCE_NAME [$RESOURCE_TYPE]"
     echo -e "---\n${BOLD}DETAILS:${RESET}\n"
 
-    # Print header for single match
     echo "NAME                     READY   UP-TO-DATE   AVAILABLE   AGE"
     echo "$RESOURCE_LINE"
-else
-    # Multiple matches found
-    echo -e "${BOLD}Multiple matches found:${RESET}"
     echo
-    # Print combined header aligned for both deployments and statefulsets
-    # We'll use max widths roughly estimated to match kubectl output columns
-    printf "%3s  %-12s  %-20s  %-7s  %-9s  %-10s  %-4s\n" \
+else
+    echo -e "\n${BOLD}Multiple matches found:${RESET}\n"
+    printf "%-4s %-13s %-22s %-8s %-12s %-11s %-5s\n" \
         "No." "TYPE" "NAME" "READY" "UP-TO-DATE" "AVAILABLE" "AGE"
 
-    # Iterate and print with aligned columns
     for i in "${!ALL_MATCHES[@]}"; do
         IFS=":" read -r TYPE NAME LINE <<< "${ALL_MATCHES[$i]}"
         if [[ "$TYPE" == "Deployment" ]]; then
-            # Extract deployment columns: NAME READY UP-TO-DATE AVAILABLE AGE
-            # Using awk fields
             READY=$(awk '{print $2}' <<< "$LINE")
             UP_TO_DATE=$(awk '{print $3}' <<< "$LINE")
             AVAILABLE=$(awk '{print $4}' <<< "$LINE")
             AGE=$(awk '{print $5}' <<< "$LINE")
-            printf "%3d) %-12s %-20s %-7s %-9s %-10s %-4s\n" \
-                $((i+1)) "$TYPE" "$NAME" "$READY" "$UP_TO_DATE" "$AVAILABLE" "$AGE"
+            printf "%-4s %-13s %-22s %-8s %-12s %-11s %-5s\n" \
+                "$((i+1)))" "$TYPE" "$NAME" "$READY" "$UP_TO_DATE" "$AVAILABLE" "$AGE"
         else
-            # StatefulSet columns: NAME READY AGE (no UP-TO-DATE or AVAILABLE)
             READY=$(awk '{print $2}' <<< "$LINE")
             AGE=$(awk '{print $3}' <<< "$LINE")
-            # Fill missing columns with "-"
-            printf "%3d) %-12s %-20s %-7s %-9s %-10s %-4s\n" \
-                $((i+1)) "$TYPE" "$NAME" "$READY" "-" "-" "$AGE"
+            printf "%-4s %-13s %-22s %-8s %-12s %-11s %-5s\n" \
+                "$((i+1)))" "$TYPE" "$NAME" "$READY" "-" "-" "$AGE"
         fi
     done
     echo
@@ -123,13 +111,14 @@ else
     SEL_INDEX=$((SEL-1))
     if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
         IFS=":" read -r RESOURCE_TYPE RESOURCE_NAME RESOURCE_LINE <<< "${ALL_MATCHES[$SEL_INDEX]}"
-        # After selection, print chosen target info with spacing and header
         echo -e "\n---"
         echo -e "${BOLD}NAMESPACE:${RESET} $NAMESPACE"
         echo -e "${BOLD}TARGET:${RESET} $RESOURCE_NAME [$RESOURCE_TYPE]"
         echo -e "---\n${BOLD}DETAILS:${RESET}\n"
+
         echo "NAME                     READY   UP-TO-DATE   AVAILABLE   AGE"
         echo "$RESOURCE_LINE"
+        echo
     else
         echo "Invalid selection."
         exit 1
@@ -145,7 +134,9 @@ if [[ "$SUBCOMMAND" == "get" ]]; then
     exit 0
 fi
 
-# === VALIDATE REPLICAS ===
+# === PROMPT FOR NEW REPLICA COUNT ===
+echo -e "\n${BOLD}Current replicas:${RESET} $CURRENT_REPLICAS\n"
+
 if [ -z "$REPLICAS" ]; then
     read -p "Enter desired replica count: " REPLICAS
 fi
@@ -156,10 +147,13 @@ if ! [[ "$REPLICAS" =~ ^[0-9]+$ ]]; then
 fi
 
 # === CONFIRMATION ===
-echo -e "\n${BOLD}Namespace:${RESET} $NAMESPACE"
-echo -e "${BOLD}Target:${RESET} $RESOURCE_NAME [$RESOURCE_TYPE]"
-echo -e "${BOLD}Scale to:${RESET} $REPLICAS replica(s)"
-read -p "Are you sure? [y/N]: " CONFIRM
+echo -e "\n${BOLD}Please confirm the following change:${RESET}"
+echo -e "Resource:   $RESOURCE_NAME [$RESOURCE_TYPE]"
+echo -e "Namespace:  $NAMESPACE"
+echo -e "Current:    $CURRENT_REPLICAS replica(s)"
+echo -e "Requested:  $REPLICAS replica(s)\n"
+
+read -p "Proceed with scaling? [y/N]: " CONFIRM
 if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo -e "Scaling ${BOLD}$RESOURCE_NAME${RESET} to ${BOLD}$REPLICAS${RESET} replicas..."
     kubectl scale "$RESOURCE_TYPE" "$RESOURCE_NAME" -n "$NAMESPACE" --replicas="$REPLICAS"
