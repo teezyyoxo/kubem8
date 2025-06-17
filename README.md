@@ -53,6 +53,12 @@ or...
    kdescribe -n prod web
    # Delete pod with 'cache' in the name in namespace 'staging'
    kdel -n staging cache
+or...
+   kscale get system-web-ui -n dev
+   # => Deployment bigid-ui in namespace 'bigid' has 1 replicas configured.
+
+   kscale some-random-pod 2
+   # => Interactively matches and confirms scaling to 2
 
 ### 🚫 No Dependencies
 	•	Does not require jq or any third-party tools
