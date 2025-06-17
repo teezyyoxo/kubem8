@@ -35,15 +35,35 @@ if [ -z "$SEARCH" ]; then
     read -p "Enter search string for $RESOURCE_TYPE: " SEARCH
 fi
 
-# === FETCH MATCHING RESOURCES ===
-MATCHES=($(kubectl get "$RESOURCE_TYPE" -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH"))
+# === GET RESOURCE LIST ===
+if [[ "$RESOURCE_TYPE" == "pod" ]]; then
+    MAP_OUTPUT=$(kubectl get pods -n "$NAMESPACE" --no-headers | grep "$SEARCH")
+    MATCHES=($(echo "$MAP_OUTPUT" | awk '{print $1}'))
+else
+    MAP_OUTPUT=$(kubectl get "$RESOURCE_TYPE" -n "$NAMESPACE" --no-headers | grep "$SEARCH")
+    MATCHES=($(echo "$MAP_OUTPUT" | awk '{print $1}'))
+fi
+
 COUNT=${#MATCHES[@]}
 
 select_resource() {
     echo "Multiple matches found:"
-    for i in "${!MATCHES[@]}"; do
-        printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
-    done
+    if [[ "$RESOURCE_TYPE" == "pod" ]]; then
+        printf " %2s  %-50s  %-8s  %-15s  %-8s  %-8s\n" "#" "NAME" "READY" "STATUS" "RESTARTS" "AGE"
+        echo "----------------------------------------------------------------------------------------------------------------"
+        i=1
+        while IFS= read -r line; do
+            FIELDS=($line)
+            printf " %2d) %-50s  %-8s  %-15s  %-8s  %-8s\n" "$i" "${FIELDS[0]}" "${FIELDS[1]}" "${FIELDS[2]}" "${FIELDS[3]}" "${FIELDS[4]}"
+            i=$((i+1))
+        done <<< "$MAP_OUTPUT"
+    else
+        for i in "${!MATCHES[@]}"; do
+            printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
+        done
+    fi
+
+    echo
     read -p "Select a $RESOURCE_TYPE number to delete: " SEL
     SEL_INDEX=$((SEL-1))
     if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
