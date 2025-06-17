@@ -10,11 +10,6 @@
 #
 # Options:
 #   -n, --namespace NAMESPACE   Namespace to operate in (default: "default")
-#
-# Features:
-#   - Supports interactive selection if multiple deployments match.
-#   - Asks for confirmation before applying scaling.
-#   - Uses default namespace if not specified.
 
 # === DEFAULTS ===
 NAMESPACE="default"
@@ -27,7 +22,7 @@ RESET='\033[0m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 
-# === ARGUMENT PARSING ===
+# === PARSE ARGS ===
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -n|--namespace)
@@ -35,9 +30,9 @@ while [[ $# -gt 0 ]]; do
             NAMESPACE="$1"
             ;;
         *)
-            if [ -z "$SEARCH" ]; then
+            if [[ -z "$SEARCH" ]]; then
                 SEARCH="$1"
-            elif [ -z "$REPLICAS" ]; then
+            elif [[ -z "$REPLICAS" ]]; then
                 REPLICAS="$1"
             fi
             ;;
@@ -45,7 +40,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# === PROMPT IF MISSING INPUT ===
+# === VALIDATE INPUT ===
 if [ -z "$SEARCH" ]; then
     read -p "Enter search string for deployment: " SEARCH
 fi
@@ -54,39 +49,47 @@ if [ -z "$REPLICAS" ]; then
     read -p "Enter desired replica count: " REPLICAS
 fi
 
-# === GET MATCHING DEPLOYMENTS ===
-readarray -t MATCHES < <(kubectl get deployments -n "$NAMESPACE" --no-headers | grep "$SEARCH")
+if ! [[ "$REPLICAS" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}Error:${RESET} Replica count must be a non-negative integer."
+    exit 1
+fi
 
+# === GET MATCHES ===
+MAPFILE -t MATCHES < <(kubectl get deploy -n "$NAMESPACE" --no-headers | awk '{print $1}' | grep "$SEARCH")
 COUNT=${#MATCHES[@]}
 
 if [ "$COUNT" -eq 0 ]; then
-    echo -e "${RED}No deployments found${RESET} in namespace '${NAMESPACE}' matching '${SEARCH}'"
+    echo -e "${RED}No deployments found in namespace '${NAMESPACE}' matching '${SEARCH}'${RESET}"
     exit 1
 elif [ "$COUNT" -eq 1 ]; then
-    DEPLOY=$(echo "${MATCHES[0]}" | awk '{print $1}')
+    DEPLOYMENT="${MATCHES[0]}"
 else
-    echo "Multiple matches found:"
+    echo -e "${BOLD}Multiple matches found:${RESET}"
     for i in "${!MATCHES[@]}"; do
         printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
     done
-    read -p "Select a deployment number to scale: " SEL
+    read -p "Select a deployment number: " SEL
     SEL_INDEX=$((SEL-1))
     if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
-        DEPLOY=$(echo "${MATCHES[$SEL_INDEX]}" | awk '{print $1}')
+        DEPLOYMENT="${MATCHES[$SEL_INDEX]}"
     else
         echo "Invalid selection."
         exit 1
     fi
 fi
 
-# === CONFIRMATION ===
-echo -e "${BOLD}Namespace:${RESET} $NAMESPACE"
-echo -e "${BOLD}Deployment:${RESET} $DEPLOY"
-echo -e "${BOLD}New replica count:${RESET} $REPLICAS"
-read -p "Scale this deployment? [y/N]: " CONFIRM
+# === SHOW METADATA ===
+echo -e "\n${BOLD}Deployment Details:${RESET}"
+kubectl get deploy "$DEPLOYMENT" -n "$NAMESPACE"
+
+# === CONFIRM ===
+echo -e "\n${BOLD}Namespace:${RESET} $NAMESPACE"
+echo -e "${BOLD}Deployment:${RESET} $DEPLOYMENT"
+echo -e "${BOLD}Scale to:${RESET} $REPLICAS replica(s)"
+read -p "Are you sure? [y/N]: " CONFIRM
 if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
-    echo -e "Scaling deployment ${BOLD}${DEPLOY}${RESET} to ${BOLD}${REPLICAS}${RESET} replicas..."
-    kubectl scale deployment "$DEPLOY" -n "$NAMESPACE" --replicas="$REPLICAS"
+    echo -e "Scaling ${BOLD}$DEPLOYMENT${RESET} to ${BOLD}$REPLICAS${RESET} replicas..."
+    kubectl scale deploy "$DEPLOYMENT" -n "$NAMESPACE" --replicas="$REPLICAS"
 else
     echo "Aborted."
     exit 0
