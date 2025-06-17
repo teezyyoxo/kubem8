@@ -1,0 +1,93 @@
+#!/bin/bash
+# kscale - Scale a Kubernetes deployment interactively
+#
+# Usage:
+#   kscale [search-string] [replica-count] [-n namespace]
+#
+# Arguments:
+#   search-string   Partial name of the deployment to match (e.g., "web")
+#   replica-count   Number of desired replicas (e.g., 0, 1, 3)
+#
+# Options:
+#   -n, --namespace NAMESPACE   Namespace to operate in (default: "default")
+#
+# Features:
+#   - Supports interactive selection if multiple deployments match.
+#   - Asks for confirmation before applying scaling.
+#   - Uses default namespace if not specified.
+
+# === DEFAULTS ===
+NAMESPACE="default"
+SEARCH=""
+REPLICAS=""
+
+# === COLORS ===
+BOLD='\033[1m'
+RESET='\033[0m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+
+# === ARGUMENT PARSING ===
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--namespace)
+            shift
+            NAMESPACE="$1"
+            ;;
+        *)
+            if [ -z "$SEARCH" ]; then
+                SEARCH="$1"
+            elif [ -z "$REPLICAS" ]; then
+                REPLICAS="$1"
+            fi
+            ;;
+    esac
+    shift
+done
+
+# === PROMPT IF MISSING INPUT ===
+if [ -z "$SEARCH" ]; then
+    read -p "Enter search string for deployment: " SEARCH
+fi
+
+if [ -z "$REPLICAS" ]; then
+    read -p "Enter desired replica count: " REPLICAS
+fi
+
+# === GET MATCHING DEPLOYMENTS ===
+readarray -t MATCHES < <(kubectl get deployments -n "$NAMESPACE" --no-headers | grep "$SEARCH")
+
+COUNT=${#MATCHES[@]}
+
+if [ "$COUNT" -eq 0 ]; then
+    echo -e "${RED}No deployments found${RESET} in namespace '${NAMESPACE}' matching '${SEARCH}'"
+    exit 1
+elif [ "$COUNT" -eq 1 ]; then
+    DEPLOY=$(echo "${MATCHES[0]}" | awk '{print $1}')
+else
+    echo "Multiple matches found:"
+    for i in "${!MATCHES[@]}"; do
+        printf " %2d) %s\n" $((i+1)) "${MATCHES[$i]}"
+    done
+    read -p "Select a deployment number to scale: " SEL
+    SEL_INDEX=$((SEL-1))
+    if [[ $SEL_INDEX -ge 0 && $SEL_INDEX -lt $COUNT ]]; then
+        DEPLOY=$(echo "${MATCHES[$SEL_INDEX]}" | awk '{print $1}')
+    else
+        echo "Invalid selection."
+        exit 1
+    fi
+fi
+
+# === CONFIRMATION ===
+echo -e "${BOLD}Namespace:${RESET} $NAMESPACE"
+echo -e "${BOLD}Deployment:${RESET} $DEPLOY"
+echo -e "${BOLD}New replica count:${RESET} $REPLICAS"
+read -p "Scale this deployment? [y/N]: " CONFIRM
+if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
+    echo -e "Scaling deployment ${BOLD}${DEPLOY}${RESET} to ${BOLD}${REPLICAS}${RESET} replicas..."
+    kubectl scale deployment "$DEPLOY" -n "$NAMESPACE" --replicas="$REPLICAS"
+else
+    echo "Aborted."
+    exit 0
+fi
