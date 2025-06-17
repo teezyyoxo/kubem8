@@ -1,8 +1,11 @@
-# Kubernetes Administration for Newbies
+# Kubernetes Administration for Newbies 🛳️
+Your friendly kube-mate for managing pods, logs, scaling, and more — without the yak shaving. ;)
 
 These are simple Bash helpers for working with `kubectl` without needing to manually copy full pod names every time.
-FYI, each script has the flag definitions in the code themselves.
-It is assumed that your are using Bash **and** have kubectl installed, with a cluster that is online.
+
+Each script has the option/flag definitions in the code themselves.
+
+By using these tools, it is assumed that you are using Bash **and** have kubectl installed, with a cluster that is online.
 
 ---
 
